@@ -18,6 +18,16 @@ class Item extends React.Component {
     var angle = this.props.angle;
     var margin = this.props.margin;
 
+    var number = this.props.number;
+    if (this.props.amount === 'hour') {
+      if (number === 0) {
+        number = 12;
+      }
+      else if (number > 12) {
+        number -= 12;
+      }
+    }
+
     return (
       <div
         className={classNames('item', {
@@ -29,7 +39,7 @@ class Item extends React.Component {
         }}
         onClick={this.handleClick.bind(this)}
       >
-        {this.props.number}
+        {number}
       </div>
     );
   }
@@ -47,14 +57,6 @@ class SecondInput extends React.Component {
     };
   }
 
-  componentDidMount() {
-    document.addEventListener('click', this.handlePageClick.bind(this));
-    this.refs.textValue.addEventListener('blur', this.handleBlur.bind(this));
-  }
-  componentWillUnmount() {
-    document.removeEventListener('click', this.handlePageClick.bind(this));
-    this.refs.textValue.removeEventListener('blur', this.handleBlur.bind(this));
-  }
   componentWillUpdate(nextProps, nextState) {
     if (
       this.state.clockOpen
@@ -62,21 +64,6 @@ class SecondInput extends React.Component {
       && typeof nextProps.onBlur === 'function'
     ) {
       nextProps.onBlur();
-    }
-  }
-
-  handlePageClick() {
-    if (
-      this.refs.widget
-      && this.state.clockOpen
-      && !(this.refs.widget !== event.target && this.refs.widget.contains(event.target))
-    ) {
-      this.hideClock();
-    }
-  }
-  handleBlur(event) {
-    if (this.state.clockOpen && event.relatedTarget !== null) {
-      this.hideClock();
     }
   }
 
@@ -106,7 +93,7 @@ class SecondInput extends React.Component {
           angle={second / 60}
           margin={CLOCK_1_RING_MARGIN}
           number={second}
-          amount="seconds"
+          amount="second"
           setTimeValue={(number, amount) => {
             this.props.onTimeValueChange(number, amount);
           }}
@@ -121,7 +108,7 @@ class SecondInput extends React.Component {
         angle={second / 60}
         margin={CLOCK_1_RING_MARGIN}
         number={second}
-        amount="seconds"
+        amount="second"
         active={true}
       />);
     }
@@ -152,11 +139,13 @@ class SecondInput extends React.Component {
           angle={minute / 60}
           margin={CLOCK_1_RING_MARGIN}
           number={minute}
-          amount="minutes"
+          amount="minute"
           setTimeValue={(number, amount) => {
             this.props.onTimeValueChange(number, amount);
             this.setState(state => {
-              state.currentPane = 'seconds';
+              if (this.props.showSeconds) {
+                state.currentPane = 'seconds';
+              }
               return state;
             });
           }}
@@ -171,7 +160,7 @@ class SecondInput extends React.Component {
         angle={minute / 60}
         margin={CLOCK_1_RING_MARGIN}
         number={minute}
-        amount="minutes"
+        amount="minute"
         active={true}
       />);
     }
@@ -190,22 +179,20 @@ class SecondInput extends React.Component {
     }
 
     var hours = [];
-    for (var hour = 0; hour < 24; hour += 1) {
+    var startHour = 0;
+    if (currentTime !== null && currentTime.hours() >= 12) {
+      startHour = 12;
+    }
+    for (var hour = startHour; hour < startHour + 12; hour += 1) {
       var active = (currentTime !== null && currentTime.hours() == hour);
-      var margin;
-      if (hour < 12) {
-        margin = CLOCK_2_RING_INNER_MARGIN;
-      }
-      else {
-        margin = CLOCK_2_RING_OUTER_MARGIN;
-      }
+      var margin = CLOCK_1_RING_MARGIN;
       hours.push(
         <Item
           key={`hour-${hour}`}
           angle={hour / 12}
           margin={margin}
           number={hour}
-          amount="hours"
+          amount="hour"
           setTimeValue={(number, amount) => {
             this.props.onTimeValueChange(number, amount);
             this.setState(state => {
@@ -221,13 +208,72 @@ class SecondInput extends React.Component {
     if (this.state.currentPane !== 'hours') {
       style.display = 'none';
     }
+
+    var am = (this.props.timeValue === null || moment(this.props.timeValue, 'x').hours() < 12);
+    var meridiem = (
+      <div className="meridiem">
+        <a
+          href="#"
+          className={classNames({'active': am})}
+          onClick={(event) => {
+            event.preventDefault();
+            if (this.props.timeValue === null) {
+              this.props.onTimeValueChange(0, 'hour');
+            }
+            else {
+              var currentTime = moment(this.props.timeValue, 'x');
+              if (currentTime.hours() >= 12) {
+                this.props.onTimeValueChange(currentTime.hours() - 12, 'hour');
+              }
+            }
+          }}
+        >
+          AM
+        </a>
+        <a
+          href="#"
+          className={classNames({'active': !am})}
+          onClick={(event) => {
+            event.preventDefault();
+            if (this.props.timeValue === null) {
+              this.props.onTimeValueChange(12, 'hour');
+            }
+            else {
+              var currentTime = moment(this.props.timeValue, 'x');
+              if (currentTime.hours() < 12) {
+                this.props.onTimeValueChange(currentTime.hours() + 12, 'hour');
+              }
+            }
+          }}
+        >
+          PM
+        </a>
+      </div>
+    );
+
     return (<div style={style}>
       {hours}
+      {meridiem}
     </div>);
   }
   renderClock() {
     if (!this.state.clockOpen) {
       return null;
+    }
+
+    var secondsTab, secondsFace;
+    if (this.props.showSeconds) {
+      secondsTab = (
+        <div
+          onClick={() => {this.setState({currentPane: 'seconds',});}}
+          className={classNames({
+            selected: (this.state.currentPane === 'seconds'),
+          })}
+        >
+          Sec
+        </div>
+      );
+      secondsFace = this.renderSecondsFace();
     }
 
     return (
@@ -249,26 +295,31 @@ class SecondInput extends React.Component {
           >
             Min
           </div>
-          <div
-            onClick={() => {this.setState({currentPane: 'seconds',});}}
-            className={classNames({
-              selected: (this.state.currentPane === 'seconds'),
-            })}
-          >
-            Sec
-          </div>
+          {secondsTab}
         </div>
         <div className="face">
           {this.renderHoursFace()}
           {this.renderMinutesFace()}
-          {this.renderSecondsFace()}
+          {secondsFace}
         </div>
       </div>
     );
   }
   render() {
     return (
-      <div className="rendered-react-second-input" ref="widget">
+      <div
+        className="rendered-react-second-input"
+        ref="widget"
+        tabIndex="-1"
+        onBlur={(event) => {
+          var currentTarget = event.currentTarget;
+          setTimeout(() => {
+            if (!currentTarget.contains(document.activeElement)) {
+              this.hideClock();
+            }
+          }, 0);
+        }}
+      >
         <input
           ref="textValue"
           type="text"
@@ -283,5 +334,8 @@ class SecondInput extends React.Component {
     );
   }
 }
+SecondInput.defaultProps = {
+  showSeconds: false,
+};
 
 export default SecondInput
