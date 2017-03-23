@@ -57,6 +57,11 @@ class SecondInput extends React.Component {
     };
   }
 
+  componentWillReceiveProps(nextProps) {
+    if (!this.props.disabled && nextProps.disabled && this.state.clockOpen) {
+      this.setState({clockOpen: false,});
+    }
+  }
   componentWillUpdate(nextProps, nextState) {
     if (
       this.state.clockOpen
@@ -328,14 +333,16 @@ class SecondInput extends React.Component {
           onFocus={this.showClock.bind(this)}
           onChange={() => {this.props.onTextChange(this.refs.textValue.value);}}
           placeholder={this.props.placeholder}
+          disabled={this.props.disabled}
         />
-        {this.renderClock()}
+        {!this.props.disabled && this.renderClock()}
       </div>
     );
   }
 }
 SecondInput.defaultProps = {
   showSeconds: false,
+  disabled: false,
 };
 
 export default SecondInput
